@@ -1,7 +1,8 @@
 local M = {}
 
 M.config = {
-  default_theme = 'default-dark'
+  default_theme = 'default-dark',
+  on_change = nil
 }
 
 local set_fgs = function(theme)
@@ -30,7 +31,7 @@ local resolve_theme = function(theme)
   end
 end
 
-local apply_theme = function(theme)
+local apply_theme = function(theme, on_change)
   local theme = resolve_theme(theme)
 
   set_fgs(theme)
@@ -41,16 +42,22 @@ local apply_theme = function(theme)
   for hi, val in pairs(his) do
     vim.api.nvim_set_hl(0, hi, val)
   end
+
+  if on_change and type(on_change) == "function" then
+    on_change(theme)
+  end
 end
 
-local theme_cmd = function(cmd_opts)
-  local theme_name = cmd_opts.args
+local theme_cmd = function(on_change)
+  return function(cmd_opts)
+    local theme_name = cmd_opts.args
 
-  -- Check if a theme name was provided
-  if theme_name and theme_name ~= "" then
-    apply_theme(theme_name)
-  else
-    print("A theme is required")
+    -- Check if a theme name was provided
+    if theme_name and theme_name ~= "" then
+      apply_theme(theme_name, on_change)
+    else
+      print("A theme is required")
+    end
   end
 end
 
@@ -87,9 +94,9 @@ end
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
-  apply_theme(M.config.default_theme)
+  apply_theme(M.config.default_theme, M.config.on_change)
 
-  vim.api.nvim_create_user_command('Theme', theme_cmd, {
+  vim.api.nvim_create_user_command('Theme', theme_cmd(M.config.on_change), {
     nargs = '?',
     complete = theme_cmd_complete
   })

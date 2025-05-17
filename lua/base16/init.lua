@@ -21,6 +21,41 @@ local set_bgs = function(theme)
   end
 end
 
+-- Saves the theme table to a persisted json file in the user's data directory.
+local persist_theme = function(theme_tbl)
+  local theme_file = vim.fn.stdpath("data") .. "/theme.json"
+  local json = vim.fn.json_encode(theme_tbl)
+
+  local file = io.open(theme_file, "w")
+  if file then
+    file:write(json)
+    file:close()
+    return true
+  end
+  return false
+end
+
+-- Reads the theme table from the user's data directory, if there is one
+local read_theme = function()
+  local theme_file = vim.fn.stdpath("data") .. "/theme.json"
+
+  local file = io.open(theme_file, "r")
+  if not file then
+    return nil
+  end
+
+  local content = file:read("*all")
+  file:close()
+
+  local ok, theme = pcall(vim.fn.json_decode, content)
+  if ok then
+    return theme
+  else
+    return nil
+  end
+end
+
+-- Resolves the theme if a name is passed in, returns it if it's a table
 local resolve_theme = function(theme)
   if type(theme) == "string" then
     return require("base16.themes." .. theme)
@@ -31,21 +66,21 @@ local resolve_theme = function(theme)
   end
 end
 
-local apply_theme = function(theme, on_change)
-  local theme = resolve_theme(theme)
-
-  set_fgs(theme)
-  set_bgs(theme)
+local apply_theme = function(theme_tbl, on_change)
+  set_fgs(theme_tbl)
+  set_bgs(theme_tbl)
 
   local highlights = require "base16.highlights"
-  local his = highlights(theme)
+  local his = highlights(theme_tbl)
   for hi, val in pairs(his) do
     vim.api.nvim_set_hl(0, hi, val)
   end
 
   if on_change and type(on_change) == "function" then
-    on_change(theme)
+    on_change(theme_tbl)
   end
+
+  persist_theme(theme_tbl)
 end
 
 local theme_cmd = function(on_change)
@@ -54,7 +89,8 @@ local theme_cmd = function(on_change)
 
     -- Check if a theme name was provided
     if theme_name and theme_name ~= "" then
-      apply_theme(theme_name, on_change)
+      local theme_tbl = resolve_theme(theme_name)
+      apply_theme(theme_tbl, on_change)
     else
       print("A theme is required")
     end
@@ -94,7 +130,13 @@ end
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
-  apply_theme(M.config.default_theme, M.config.on_change)
+  -- Read the theme from the user settings, otherwise load the default
+  local theme_tbl = read_theme()
+  if not theme_tbl then
+    theme_tbl = resolve_theme(M.config.default_theme)
+  end
+
+  apply_theme(theme_tbl, M.config.on_change)
 
   vim.api.nvim_create_user_command('Theme', theme_cmd(M.config.on_change), {
     nargs = '?',

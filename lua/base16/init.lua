@@ -1,7 +1,7 @@
 local M = {}
 
 M.config = {
-  theme = 'default-dark'
+  default_theme = 'default-dark'
 }
 
 local set_fgs = function(theme)
@@ -87,7 +87,7 @@ end
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
-  apply_theme(M.config.theme)
+  apply_theme(M.config.default_theme)
 
   vim.api.nvim_create_user_command('Theme', theme_cmd, {
     nargs = '?',

@@ -2,7 +2,13 @@ local M = {}
 
 M.config = {
   default_theme = 'default-dark',
-  on_change = nil
+  on_change = nil,
+
+  -- When true, any highlight group whose background is the theme's background
+  -- color (base00) is left unpainted, so whatever the terminal draws behind
+  -- nvim shows through. This does not force transparency: an opaque terminal
+  -- still looks opaque, a translucent one now passes through.
+  transparent = false,
 }
 
 local set_fgs = function(theme)
@@ -18,6 +24,35 @@ local set_bgs = function(theme)
     local hi = k:gsub("^%l", string.upper) .. 'Bg'
 
     vim.api.nvim_set_hl(0, hi, { bg = v })
+  end
+end
+
+-- Clears the background of every highlight group that paints base00, so the
+-- terminal background shows through instead. Groups using any other background
+-- (floats, popups, statusline, selections) are left alone.
+local clear_bgs = function(theme)
+  local bg = tonumber(theme.base00:gsub("#", ""), 16)
+  if not bg then
+    return
+  end
+
+  for name, hl in pairs(vim.api.nvim_get_hl(0, {})) do
+    if hl.bg == bg then
+      hl.bg = nil
+      hl.ctermbg = nil
+
+      vim.api.nvim_set_hl(0, name, hl)
+    end
+  end
+
+  -- These have no background of their own, but nvim still fills them with the
+  -- Normal background unless told otherwise.
+  for _, name in ipairs { "Normal", "NormalNC", "EndOfBuffer", "NonText", "MsgArea" } do
+    local hl = vim.api.nvim_get_hl(0, { name = name })
+    hl.bg = nil
+    hl.ctermbg = nil
+
+    vim.api.nvim_set_hl(0, name, hl)
   end
 end
 
@@ -78,6 +113,11 @@ local apply_theme = function(theme_tbl, on_change)
 
   if on_change and type(on_change) == "function" then
     on_change(theme_tbl)
+  end
+
+  -- Runs last so that user highlights are made transparent too
+  if M.config.transparent then
+    clear_bgs(theme_tbl)
   end
 
   persist_theme(theme_tbl)
